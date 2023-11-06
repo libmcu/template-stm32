@@ -61,7 +61,7 @@ jobs:
         with:
           script: |
             const fs = require("fs");
-            const filepath = "$MEMSEG_RESULT";
+            const filepath = "${{ env.MEMSEG_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -94,7 +94,7 @@ jobs:
         with:
           script: |
             const fs = require("fs");
-            const filepath = "$CODECHECKER_RESULT";
+            const filepath = "${{ env.CODECHECKER_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -106,6 +106,6 @@ jobs:
         if: always()
         uses: EndBug/add-and-commit@v9
         with:
-          add: '[$CODECHECKER_BASE, $MEMSEG_BASE]'
+          add: '[${{ env.CODECHECKER_BASE }}, ${{ env.MEMSEG_BASE }}]'
           default_author: github_actions
           push: origin HEAD:${{ github.head_ref }} --force
