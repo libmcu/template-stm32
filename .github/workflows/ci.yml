@@ -20,12 +20,6 @@ jobs:
       - name: Prepare
         run: |
           git config --system --add safe.directory '*'
-          echo "CODECHECKER_RESULT=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
-          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_ENV
       - name: UnitTest
         run: |
           echo "Hello" || true
@@ -38,8 +32,13 @@ jobs:
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=projects/arm-none-eabi-gcc.cmake
           cmake --build build
       - name: Process Memory Usage
+        id: memseg
         continue-on-error: true
         run: |
+          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_ENV
+
           git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
           . $IDF_PATH/export.sh
           arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
@@ -61,7 +60,7 @@ jobs:
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ env.MEMSEG_RESULT }}";
+            const filepath = "${{ steps.memseg.outputs.MEMSEG_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -72,6 +71,10 @@ jobs:
       - name: Static Analysis
         id: analysis
         run: |
+          echo "CODECHECKER_RESULT=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
+
           sed -i 's/-fno-tree-switch-conversion//g' build/compile_commands.json
           sed -i 's/-fstrict-volatile-bitfields//g' build/compile_commands.json
           sed -i 's/-std=gnu17//g' build/compile_commands.json
@@ -85,16 +88,16 @@ jobs:
       - name: Process Analysis Result
         if: always()
         run: |
-          sed -i '1s/^/```\n/' $CODECHECKER_RESULT
-          echo "\n\`\`\`" >> $CODECHECKER_RESULT
-          cp $CODECHECKER_BASE_TMP $CODECHECKER_BASE
+          sed -i '1s/^/```\n/' ${{ steps.analysis.outputs.CODECHECKER_RESULT }}
+          echo "\n\`\`\`" >> %{{ steps.analysis.outputs.CODECHECKER_RESULT }}
+          cp ${{ steps.analysis.outputs.CODECHECKER_BASE_TMP }} ${{ steps.analysis.outputs.CODECHECKER_BASE }}
       - name: Comment Static Analysis Result
         if: always() && github.event_name == 'pull_request' && steps.analysis.outcome != 'success'
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ env.CODECHECKER_RESULT }}";
+            const filepath = "${{ steps.analysis.outputs.CODECHECKER_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -106,6 +109,6 @@ jobs:
         if: always()
         uses: EndBug/add-and-commit@v9
         with:
-          add: '[${{ env.CODECHECKER_BASE }}, ${{ env.MEMSEG_BASE }}]'
+          add: '[${{ steps.analysis.outputs.CODECHECKER_BASE }}, ${{ steps.memseg.outputs.MEMSEG_BASE }}]'
           default_author: github_actions
           push: origin HEAD:${{ github.head_ref }} --force
