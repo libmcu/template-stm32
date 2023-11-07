@@ -23,6 +23,8 @@ jobs:
           echo "CODECHECKER_RESULT=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
           echo "CODECHECKER_BASE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
           echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
+          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
       - name: UnitTest
         run: |
           echo "Hello" || true
@@ -38,43 +40,29 @@ jobs:
         id: memseg
         continue-on-error: true
         run: |
-          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_OUTPUT
-          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_OUTPUT
-          echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_OUTPUT
-
-          echo $MEMSEG_BASE
-          git branch
           git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
-          arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
+          echo "MEMSEG_HEAD=$(arm-none-eabi-size build/*.elf)" >> $GITHUB_OUTPUT
+      - name: test
+        run: |
           echo -n "\`\`\`\n        " > $MEMSEG_RESULT
-          cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT
+          cat ${{ steps.memseg.outputs.MEMSEG_HEAD }} | sed -n 1p >> $MEMSEG_RESULT
           echo -n "current " >> $MEMSEG_RESULT
-          cat $MEMSEG_BASE_TMP | sed -n 2p >> $MEMSEG_RESULT
+          cat ${{ steps.memseg.outputs.MEMSEG_HEAD }} | sed -n 2p >> $MEMSEG_RESULT
           echo -n "base    " >> $MEMSEG_RESULT
           cat $MEMSEG_BASE | sed -n 2p >> $MEMSEG_RESULT
           echo -n "diff    " >> $MEMSEG_RESULT
-          paste $MEMSEG_BASE $MEMSEG_BASE_TMP | \
+          paste $MEMSEG_BASE ${{ steps.memseg.outputs.MEMSEG_HEAD }} | \
             sed -n 2p | \
             awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT
           echo "\n\`\`\`" >> $MEMSEG_RESULT
-          cp $MEMSEG_BASE_TMP $MEMSEG_BASE
-          echo "MEMSEG_RESULT2=$(cat .github/memsize.txt)" >> $GITHUB_OUTPUT
-      - name: test
-        run: |
-          ls -al
-          echo "github"
-          ls -al .github
-          echo "file"
-          cat ${{ steps.memseg.outputs.MEMSEG_RESULT }}
-          echo "output"
-          echo ${{ steps.memseg.outputs.MEMSEG_RESULT2 }}
+          cp ${{ steps.memseg.outputs.MEMSEG_HEAD }} $MEMSEG_BASE
       - name: Comment Memory Size
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ steps.memseg.outputs.MEMSEG_RESULT }}";
+            const filepath = "${{ env.MEMSEG_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
