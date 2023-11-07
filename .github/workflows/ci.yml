@@ -35,25 +35,27 @@ jobs:
         id: memseg
         continue-on-error: true
         run: |
-          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
+          echo "MEMSEG_RESULT_FILE=$(echo .github/memsize.txt)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE_FILE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
           echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_ENV
 
-          git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
+          git checkout main $MEMSEG_BASE_FILE || cp $MEMSEG_BASE_FILE.template $MEMSEG_BASE_FILE
           . $IDF_PATH/export.sh
           arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
-          echo -n "\`\`\`\n        " > $MEMSEG_RESULT
-          cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT
-          echo -n "current " >> $MEMSEG_RESULT
-          cat $MEMSEG_BASE_TMP | sed -n 2p >> $MEMSEG_RESULT
-          echo -n "base    " >> $MEMSEG_RESULT
-          cat $MEMSEG_BASE | sed -n 2p >> $MEMSEG_RESULT
-          echo -n "diff    " >> $MEMSEG_RESULT
-          paste $MEMSEG_BASE $MEMSEG_BASE_TMP | \
+          echo -n "\`\`\`\n        " > $MEMSEG_RESULT_FILE
+          cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT_FILE
+          echo -n "current " >> $MEMSEG_RESULT_FILE
+          cat $MEMSEG_BASE_TMP | sed -n 2p >> $MEMSEG_RESULT_FILE
+          echo -n "base    " >> $MEMSEG_RESULT_FILE
+          cat $MEMSEG_BASE_FILE | sed -n 2p >> $MEMSEG_RESULT_FILE
+          echo -n "diff    " >> $MEMSEG_RESULT_FILE
+          paste $MEMSEG_BASE_FILE $MEMSEG_BASE_TMP | \
             sed -n 2p | \
-            awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT
-          echo "\n\`\`\`" >> $MEMSEG_RESULT
-          cp $MEMSEG_BASE_TMP $MEMSEG_BASE
+            awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT_FILE
+          echo "\n\`\`\`" >> $MEMSEG_RESULT_FILE
+          cp $MEMSEG_BASE_TMP $MEMSEG_BASE_FILE
+          echo "MEMSEG_BASE=$(cat $MEMSEG_BASE_FILE)" >> $GITHUB_ENV
+          echo "MEMSEG_RESULT=$(cat $MEMSEG_RESULT_FILE)" >> $GITHUB_ENV
       - name: Comment Memory Size
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
@@ -71,8 +73,8 @@ jobs:
       - name: Static Analysis
         id: analysis
         run: |
-          echo "CODECHECKER_RESULT=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
+          echo "CODECHECKER_RESULT_FILE=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE_FILE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
           echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
 
           sed -i 's/-fno-tree-switch-conversion//g' build/compile_commands.json
@@ -80,11 +82,13 @@ jobs:
           sed -i 's/-std=gnu17//g' build/compile_commands.json
           CodeChecker analyze ./build/compile_commands.json --enable sensitive \
             --output ./reports --ignore .codechecker.exclude
-          git checkout main $CODECHECKER_BASE || true
+          git checkout main $CODECHECKER_BASE_FILE || true
           CodeChecker parse ./reports -e baseline -o $CODECHECKER_BASE_TMP || true
-          CodeChecker cmd diff -b $CODECHECKER_BASE \
-            -n ./reports --new > $CODECHECKER_RESULT ||
-            CodeChecker parse reports > $CODECHECKER_RESULT
+          CodeChecker cmd diff -b $CODECHECKER_BASE_FILE \
+            -n ./reports --new > $CODECHECKER_RESULT_FILE ||
+            CodeChecker parse reports > $CODECHECKER_RESULT_FILE
+          echo "CODECHECKER_RESULT=$(cat $CODECHECKER_RESULT_FILE)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE=$(cat $CODECHECKER_BASE_FILE)" >> $GITHUB_ENV
       - name: Process Analysis Result
         if: always()
         run: |
