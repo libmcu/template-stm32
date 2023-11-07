@@ -20,6 +20,12 @@ jobs:
       - name: Prepare
         run: |
           git config --system --add safe.directory '*'
+          echo "CODECHECKER_RESULT=$(echo $HOME/codechecker_result.txt)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE=$(echo $HOME/codechecker.baseline)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE_TMP=$(echo $HOME/codechecker_tmp.baseline)" >> $GITHUB_ENV
+          echo "MEMSEG_RESULT=$(echo $HOME/memsize.txt)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE=$(echo $HOME/memsize.baseline)" >> $GITHUB_ENV
+          echo "MEMSEG_BASE_TMP=$(echo $HOME/memsize_tmp.baseline)" >> $GITHUB_ENV
       - name: UnitTest
         run: |
           echo "Hello" || true
@@ -32,37 +38,30 @@ jobs:
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=projects/arm-none-eabi-gcc.cmake
           cmake --build build
       - name: Process Memory Usage
-        id: memseg
         continue-on-error: true
         run: |
-          echo "MEMSEG_RESULT_FILE=$(echo .github/memsize.txt)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE_FILE=$(echo .github/memsize.baseline)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_ENV
-
-          git checkout main $MEMSEG_BASE_FILE || cp $MEMSEG_BASE_FILE.template $MEMSEG_BASE_FILE
+          git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
           . $IDF_PATH/export.sh
           arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
-          echo -n "\`\`\`\n        " > $MEMSEG_RESULT_FILE
-          cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT_FILE
-          echo -n "current " >> $MEMSEG_RESULT_FILE
-          cat $MEMSEG_BASE_TMP | sed -n 2p >> $MEMSEG_RESULT_FILE
-          echo -n "base    " >> $MEMSEG_RESULT_FILE
-          cat $MEMSEG_BASE_FILE | sed -n 2p >> $MEMSEG_RESULT_FILE
-          echo -n "diff    " >> $MEMSEG_RESULT_FILE
-          paste $MEMSEG_BASE_FILE $MEMSEG_BASE_TMP | \
+          echo -n "\`\`\`\n        " > $MEMSEG_RESULT
+          cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT
+          echo -n "current " >> $MEMSEG_RESULT
+          cat $MEMSEG_BASE_TMP | sed -n 2p >> $MEMSEG_RESULT
+          echo -n "base    " >> $MEMSEG_RESULT
+          cat $MEMSEG_BASE | sed -n 2p >> $MEMSEG_RESULT
+          echo -n "diff    " >> $MEMSEG_RESULT
+          paste $MEMSEG_BASE $MEMSEG_BASE_TMP | \
             sed -n 2p | \
-            awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT_FILE
-          echo "\n\`\`\`" >> $MEMSEG_RESULT_FILE
-          cp $MEMSEG_BASE_TMP $MEMSEG_BASE_FILE
-          echo "MEMSEG_BASE=$(cat $MEMSEG_BASE_FILE)" >> $GITHUB_ENV
-          echo "MEMSEG_RESULT=$(cat $MEMSEG_RESULT_FILE)" >> $GITHUB_ENV
+            awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT
+          echo "\n\`\`\`" >> $MEMSEG_RESULT
+          cp $MEMSEG_BASE_TMP $MEMSEG_BASE
       - name: Comment Memory Size
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ steps.memseg.outputs.MEMSEG_RESULT }}";
+            const filepath = "${{ env.MEMSEG_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -73,35 +72,29 @@ jobs:
       - name: Static Analysis
         id: analysis
         run: |
-          echo "CODECHECKER_RESULT_FILE=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE_FILE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
-
           sed -i 's/-fno-tree-switch-conversion//g' build/compile_commands.json
           sed -i 's/-fstrict-volatile-bitfields//g' build/compile_commands.json
           sed -i 's/-std=gnu17//g' build/compile_commands.json
           CodeChecker analyze ./build/compile_commands.json --enable sensitive \
             --output ./reports --ignore .codechecker.exclude
-          git checkout main $CODECHECKER_BASE_FILE || true
+          git checkout main $CODECHECKER_BASE || true
           CodeChecker parse ./reports -e baseline -o $CODECHECKER_BASE_TMP || true
-          CodeChecker cmd diff -b $CODECHECKER_BASE_FILE \
-            -n ./reports --new > $CODECHECKER_RESULT_FILE ||
-            CodeChecker parse reports > $CODECHECKER_RESULT_FILE
-          echo "CODECHECKER_RESULT=$(cat $CODECHECKER_RESULT_FILE)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE=$(cat $CODECHECKER_BASE_FILE)" >> $GITHUB_ENV
+          CodeChecker cmd diff -b $CODECHECKER_BASE \
+            -n ./reports --new > $CODECHECKER_RESULT ||
+            CodeChecker parse reports > $CODECHECKER_RESULT
       - name: Process Analysis Result
         if: always()
         run: |
-          sed -i '1s/^/```\n/' ${{ steps.analysis.outputs.CODECHECKER_RESULT }}
-          echo "\n\`\`\`" >> %{{ steps.analysis.outputs.CODECHECKER_RESULT }}
-          cp ${{ steps.analysis.outputs.CODECHECKER_BASE_TMP }} ${{ steps.analysis.outputs.CODECHECKER_BASE }}
+          sed -i '1s/^/```\n/' $CODECHECKER_RESULT
+          echo "\n\`\`\`" >> $CODECHECKER_RESULT
+          cp $CODECHECKER_BASE_TMP $CODECHECKER_BASE
       - name: Comment Static Analysis Result
         if: always() && github.event_name == 'pull_request' && steps.analysis.outcome != 'success'
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ steps.analysis.outputs.CODECHECKER_RESULT }}";
+            const filepath = "${{ env.CODECHECKER_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -109,10 +102,19 @@ jobs:
               repo: context.repo.repo,
               body: body
             })
+      - name: test
+        run: |
+          echo "current"
+          pwd
+          ls -al
+          echo "home"
+          ls -al $HOME
+          cp ${{ env.CODECHECKER_BASE }} .github/codechecker.baseline
+          cp ${{ env.MEMSEG_BASE }} .github/memsize.baseline
       - name: Store codechecker baseline
         if: always()
         uses: EndBug/add-and-commit@v9
         with:
-          add: '[${{ steps.analysis.outputs.CODECHECKER_BASE }}, ${{ steps.memseg.outputs.MEMSEG_BASE }}]'
+          add: '[.github/codechecker.baseline, .github/memsize.baseline]'
           default_author: github_actions
           push: origin HEAD:${{ github.head_ref }} --force
