@@ -20,12 +20,9 @@ jobs:
       - name: Prepare
         run: |
           git config --system --add safe.directory '*'
-          echo "CODECHECKER_RESULT=$(echo $HOME/codechecker_result.txt)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE=$(echo $HOME/codechecker.baseline)" >> $GITHUB_ENV
-          echo "CODECHECKER_BASE_TMP=$(echo $HOME/codechecker_tmp.baseline)" >> $GITHUB_ENV
-          echo "MEMSEG_RESULT=$(echo $HOME/memsize.txt)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE=$(echo $HOME/memsize.baseline)" >> $GITHUB_ENV
-          echo "MEMSEG_BASE_TMP=$(echo $HOME/memsize_tmp.baseline)" >> $GITHUB_ENV
+          echo "CODECHECKER_RESULT=$(echo .github/codechecker_result.txt)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE=$(echo .github/codechecker.baseline)" >> $GITHUB_ENV
+          echo "CODECHECKER_BASE_TMP=$(echo .github/codechecker_tmp.baseline)" >> $GITHUB_ENV
       - name: UnitTest
         run: |
           echo "Hello" || true
@@ -38,8 +35,13 @@ jobs:
           cmake -S . -B build -DCMAKE_TOOLCHAIN_FILE=projects/arm-none-eabi-gcc.cmake
           cmake --build build
       - name: Process Memory Usage
+        id: memseg
         continue-on-error: true
         run: |
+          echo "MEMSEG_RESULT=$(echo .github/memsize.txt)" >> $GITHUB_OUTPUT
+          echo "MEMSEG_BASE=$(echo .github/memsize.baseline)" >> $GITHUB_OUTPUT
+          echo "MEMSEG_BASE_TMP=$(echo .github/memsize_tmp.baseline)" >> $GITHUB_OUTPUT
+
           git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
           . $IDF_PATH/export.sh
           arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
@@ -55,13 +57,23 @@ jobs:
             awk '{printf "%7d %7d %7d", $7-$1, $8-$2, $9-$3}' >> $MEMSEG_RESULT
           echo "\n\`\`\`" >> $MEMSEG_RESULT
           cp $MEMSEG_BASE_TMP $MEMSEG_BASE
+          echo "MEMSEG_RESULT2=$(cat .github/memsize.txt)" >> $GITHUB_OUTPUT
+      - name: test
+        run: |
+          ls -al
+          echo "github"
+          ls -al .github
+          echo "file"
+          cat ${{ steps.memseg.outputs.MEMSEG_RESULT }}
+          echo "output"
+          echo ${{ steps.memseg.outputs.MEMSEG_RESULT2 }}
       - name: Comment Memory Size
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v6
         with:
           script: |
             const fs = require("fs");
-            const filepath = "${{ env.MEMSEG_RESULT }}";
+            const filepath = "${{ steps.memseg.outputs.MEMSEG_RESULT }}";
             const body = fs.readFileSync(filepath, "utf-8");
             github.rest.issues.createComment({
               issue_number: ${{ github.event.number }},
@@ -102,19 +114,10 @@ jobs:
               repo: context.repo.repo,
               body: body
             })
-      - name: test
-        run: |
-          echo "current"
-          pwd
-          ls -al
-          echo "home"
-          ls -al $HOME
-          cp ${{ env.CODECHECKER_BASE }} .github/codechecker.baseline
-          cp ${{ env.MEMSEG_BASE }} .github/memsize.baseline
       - name: Store codechecker baseline
         if: always()
         uses: EndBug/add-and-commit@v9
         with:
-          add: '[.github/codechecker.baseline, .github/memsize.baseline]'
+          add: '[${{ env.CODECHECKER_BASE }}, ${{ steps.memseg.outputs.MEMSEG_BASE }}]'
           default_author: github_actions
           push: origin HEAD:${{ github.head_ref }} --force
