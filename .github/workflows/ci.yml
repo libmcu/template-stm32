@@ -41,7 +41,6 @@ jobs:
         continue-on-error: true
         run: |
           git checkout main $MEMSEG_BASE || cp $MEMSEG_BASE.template $MEMSEG_BASE
-          . $IDF_PATH/export.sh
           arm-none-eabi-size build/*.elf > $MEMSEG_BASE_TMP
           echo -n "\`\`\`\n        " > $MEMSEG_RESULT
           cat $MEMSEG_BASE_TMP | sed -n 1p >> $MEMSEG_RESULT
