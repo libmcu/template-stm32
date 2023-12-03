@@ -40,6 +40,7 @@ const char *board_get_serial_number_string(void)
 	static char sn[16+1];
 
 	if (strnlen(sn, sizeof(sn)) == 0) {
+
 		sprintf(sn, "%08lx%08lx", HAL_GetDEVID(), HAL_GetREVID());
 	}
 
