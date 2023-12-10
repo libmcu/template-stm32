@@ -103,9 +103,9 @@ jobs:
               body: body
             })
       - name: Store codechecker baseline
-        if: always()
+        if: always() && github.event_name == 'pull_request'
         uses: EndBug/add-and-commit@v9
         with:
           add: '[${{ env.CODECHECKER_BASE }}, ${{ env.MEMSEG_BASE }}]'
           default_author: github_actions
-          push: origin HEAD:${{ github.ref }} --force
+          push: origin HEAD:${{ github.head_ref }} --force
