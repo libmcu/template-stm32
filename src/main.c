@@ -15,12 +15,11 @@ static struct gpio *led;
 
 int main(void)
 {
-	const board_reboot_reason_t reboot_reason = board_get_reboot_reason();
-
 	board_init(); /* should be called very first. */
 	logging_init(board_get_time_since_boot_ms);
 	logging_stdout_backend_init();
 
+	const board_reboot_reason_t reboot_reason = board_get_reboot_reason();
 	info("[%s] %s %s", board_get_reboot_reason_string(reboot_reason),
 			board_get_serial_number_string(),
 			board_get_version_string());

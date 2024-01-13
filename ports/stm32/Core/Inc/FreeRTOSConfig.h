@@ -62,6 +62,7 @@
 #define configUSE_PREEMPTION                     1
 #define configSUPPORT_STATIC_ALLOCATION          1
 #define configSUPPORT_DYNAMIC_ALLOCATION         1
+#define configUSE_TICKLESS_IDLE	                 1
 #define configUSE_IDLE_HOOK                      0
 #define configUSE_TICK_HOOK                      0
 #define configCPU_CLOCK_HZ                       ( SystemCoreClock )
@@ -115,6 +116,7 @@ to exclude the API function. */
 #define INCLUDE_xQueueGetMutexHolder         1
 #define INCLUDE_uxTaskGetStackHighWaterMark  1
 #define INCLUDE_xTaskGetCurrentTaskHandle    1
+#define INCLUDE_xTaskGetIdleTaskHandle       1
 #define INCLUDE_eTaskGetState                1
 
 /*
@@ -167,6 +169,12 @@ standard names. */
 #define configUSE_TIME_SLICING                   1
 #define configCHECK_FOR_STACK_OVERFLOW           2
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+void on_task_switch_in(void);
+void on_sleep_enter(uint32_t tick);
+void on_sleep_exit(uint32_t tick);
+#define traceTASK_SWITCHED_IN()		on_task_switch_in()
+#define configPRE_SLEEP_PROCESSING(x)	on_sleep_enter(x)
+#define configPOST_SLEEP_PROCESSING(x)	on_sleep_exit(x)
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
