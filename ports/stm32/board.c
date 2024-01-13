@@ -33,6 +33,10 @@ static void initialize_bsp(void)
 	extern void SystemClock_Config(void);
 	HAL_Init();
 	SystemClock_Config();
+
+	RCC->CSR |= RCC_CSR_LSION; /* enable LSI */
+	while (!(RCC->CSR & RCC_CSR_LSIRDY)) { /* check if LSI is ready */
+	}
 }
 
 const char *board_get_serial_number_string(void)
