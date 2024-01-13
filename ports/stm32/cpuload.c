@@ -55,6 +55,7 @@ void on_sleep_enter(uint32_t tick)
 #if 0
 	HAL_SuspendTick();
 #endif
+	(void)tick;
 }
 
 void on_sleep_exit(uint32_t tick)
@@ -62,6 +63,7 @@ void on_sleep_exit(uint32_t tick)
 #if 0
 	HAL_ResumeTick();
 #endif
+	(void)tick;
 }
 
 uint8_t board_cpuload(void)
