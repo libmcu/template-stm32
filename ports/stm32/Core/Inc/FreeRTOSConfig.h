@@ -166,8 +166,10 @@ standard names. */
 /* USER CODE BEGIN Defines */
 #define configUSE_TIME_SLICING                   1
 #define configCHECK_FOR_STACK_OVERFLOW           2
-#define configUSE_TICKLESS_IDLE			1
+#define configUSE_TICKLESS_IDLE			2
 #define INCLUDE_xTaskGetIdleTaskHandle       1
+#define configTICK_USES_LSI			1
+#define configLPTIM_REF_CLOCK_HZ		32000
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
 void on_task_switch_in(void);
 void on_sleep_enter(uint32_t tick);
