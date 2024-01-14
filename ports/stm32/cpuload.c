@@ -83,5 +83,5 @@ void on_sleep_exit(uint32_t tick)
 
 uint8_t board_cpuload(int core_id)
 {
-	return cores[0].cpuload;
+	return cores[core_id].cpuload;
 }
