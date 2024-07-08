@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "logging.h"
+#include "logger.h"
+#include "libmcu/board.h"
 
 #define STDOUT_RTT
 #if defined(STDOUT_RTT)
@@ -15,12 +16,12 @@
 static struct uart *uart2;
 #endif
 
-static size_t logging_stdout_writer(const void *data, size_t size)
+static size_t stdout_writer(const void *data, size_t size)
 {
 	unused(size);
 
 	static char buf[LOGGING_MESSAGE_MAXLEN];
-	size_t len = logging_stringify(buf, sizeof(buf)-1, data);
+	size_t len = logging_stringify(buf, sizeof(buf)-2, data);
 
 	buf[len++] = '\n';
 	buf[len] = '\0';
@@ -32,7 +33,7 @@ static size_t logging_stdout_writer(const void *data, size_t size)
 #endif
 }
 
-void logging_stdout_backend_init(void)
+static void initialize_backend_stdout(void)
 {
 #if defined(STDOUT_RTT)
 	volatile uint32_t *dhcsr = (uint32_t*)0xE000EDF0;
@@ -49,8 +50,14 @@ void logging_stdout_backend_init(void)
 #endif
 
 	static struct logging_backend log_console = {
-		.write = logging_stdout_writer,
+		.write = stdout_writer,
 	};
 
 	logging_add_backend(&log_console);
+}
+
+void logger_init(void)
+{
+	logging_init(board_get_time_since_boot_ms);
+	initialize_backend_stdout();
 }
