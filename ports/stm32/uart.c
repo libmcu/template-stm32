@@ -30,7 +30,7 @@ static int write_uart(struct uart *self, const void *data, size_t data_len)
 	}
 
 	if (HAL_UART_Transmit(self->handle, (const uint8_t *)data,
-		       (uint16_t)data_len, 100U) != HAL_OK) {
+		       (uint16_t)data_len, HAL_MAX_DELAY) != HAL_OK) {
 		return -EIO;
 	}
 
@@ -43,13 +43,7 @@ static int read_uart(struct uart *self, void *buf, size_t bufsize)
 		return -EPIPE;
 	}
 
-	if (HAL_UART_Receive(self->handle, (uint8_t *)buf, (uint16_t)bufsize,
-			HAL_MAX_DELAY) != HAL_OK) {
-		return -EIO;
-	}
-
-	/* FIXME: it should return the number of bytes received */
-	return (int)bufsize;
+	return hal_uart2_read(buf, bufsize);
 }
 
 static int enable_uart(struct uart *self, uint32_t baudrate)

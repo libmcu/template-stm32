@@ -42,6 +42,7 @@ void MX_USART2_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
 void MX_USART2_UART_DeInit(void);
+size_t hal_uart2_read(void *buf, size_t bufsize);
 
 /* USER CODE END Prototypes */
 

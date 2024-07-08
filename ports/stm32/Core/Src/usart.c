@@ -22,6 +22,14 @@
 
 /* USER CODE BEGIN 0 */
 
+#include "libmcu/ringbuf.h"
+
+#define RX_BUFSIZE	512
+
+static struct ringbuf rxbuf_handle;
+static uint8_t rxbuf[RX_BUFSIZE];
+static uint8_t rxbyte;
+
 /* USER CODE END 0 */
 
 UART_HandleTypeDef huart2;
@@ -67,6 +75,8 @@ void MX_USART2_UART_Init(void)
   }
   /* USER CODE BEGIN USART2_Init 2 */
 
+	ringbuf_create_static(&rxbuf_handle, rxbuf, sizeof(rxbuf));
+	HAL_UART_Receive_IT(&huart2, &rxbyte, sizeof(rxbyte));
   /* USER CODE END USART2_Init 2 */
 
 }
@@ -114,6 +124,9 @@ void HAL_UART_MspInit(UART_HandleTypeDef* uartHandle)
     GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+    /* USART2 interrupt Init */
+    HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(USART2_IRQn);
   /* USER CODE BEGIN USART2_MspInit 1 */
 
   /* USER CODE END USART2_MspInit 1 */
@@ -139,6 +152,8 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
     HAL_GPIO_DeInit(GPIOB, GPIO_PIN_4);
 
+    /* USART2 interrupt Deinit */
+    HAL_NVIC_DisableIRQ(USART2_IRQn);
   /* USER CODE BEGIN USART2_MspDeInit 1 */
 
   /* USER CODE END USART2_MspDeInit 1 */
@@ -152,5 +167,18 @@ void MX_USART2_UART_DeInit(void)
   {
     Error_Handler();
   }
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	if (huart == &huart2) {
+		ringbuf_write(&rxbuf_handle, &rxbyte, sizeof(rxbyte));
+		HAL_UART_Receive_IT(huart, &rxbyte, sizeof(rxbyte));
+	}
+}
+
+size_t hal_uart2_read(void *buf, size_t bufsize)
+{
+	return ringbuf_read(&rxbuf_handle, 0, buf, bufsize);
 }
 /* USER CODE END 1 */
